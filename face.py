@@ -7,7 +7,7 @@ import subprocess
 from datetime import datetime
 
 # Path to known face image
-KNOWN_FACE_PATH = "/Users/prithviraj/Documents/UISSR/Elon_Musk.webp" # Change this to the correct path
+KNOWN_FACE_PATH = "meter.jpg" # Change this to the correct path
 
 # Load the known face image and encode it
 known_image = face_recognition.load_image_file(KNOWN_FACE_PATH)
