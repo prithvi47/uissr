@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lip Tracking and EMG Light & Fan Control</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin-top: 20px;
+        }
+        .device {
+            width: 100px;
+            height: 100px;
+            background-color: grey;
+            margin: 20px auto;
+            border-radius: 50%;
+            line-height: 100px;
+            color: white;
+            font-size: 20px;
+            transition: background-color 0.3s ease;
+        }
+        #videoContainer {
+            position: relative;
+            width: 640px;
+            height: 480px;
+            margin: 0 auto;
+        }
+        #videoElement, #outputCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+</head>
+<body>
+    <h1>Lip Tracking and EMG Light & Fan Control</h1>
+    <div id="videoContainer">
+        <video id="videoElement" autoplay></video>
+        <canvas id="outputCanvas" width="640" height="480"></canvas>
+    </div>
+    <div id="light" class="device">Light Off</div>
+    <div id="fan" class="device">Fan Off</div>
+    
+    <script>
+        const video = document.getElementById('videoElement');
+        const canvas = document.getElementById('outputCanvas');
+        const canvasCtx = canvas.getContext('2d');
+        const light = document.getElementById('light');
+        const fan = document.getElementById('fan');
+        let mouthOpenCount = 0;
+        let lastMouthState = false;
+        let lightOn = false;
+        let fanOn = false;
+        let timeoutReset;
+
+        const faceMesh = new FaceMesh({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`,
+        });
+
+        faceMesh.setOptions({
+            maxNumFaces: 1,
+            refineLandmarks: true,
+            minDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.5
+        });
+
+        faceMesh.onResults(onResults);
+
+        const camera = new Camera(video, {
+            onFrame: async () => {
+                await faceMesh.send({ image: video });
+            },
+            width: 640,
+            height: 480
+        });
+        camera.start();
+
+        function onResults(results) {
+            canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
+                const landmarks = results.multiFaceLandmarks[0];
+                const upperLip = landmarks[13];
+                const lowerLip = landmarks[14];
+                const mouthDistance = Math.abs(lowerLip.y - upperLip.y) * canvas.height;
+
+                let isMouthOpen = mouthDistance > 5;
+                
+                if (isMouthOpen && !lastMouthState) {
+                    mouthOpenCount++;
+                    clearTimeout(timeoutReset);
+                    timeoutReset = setTimeout(() => { mouthOpenCount = 0; }, 2000);
+                }
+
+                lastMouthState = isMouthOpen;
+                
+                if (mouthOpenCount === 1) {
+                    toggleLight();
+                } else if (mouthOpenCount === 3) {
+                    toggleFan();
+                    mouthOpenCount = 0; 
+                }
+            }
+        }
+
+        function toggleLight() {
+            lightOn = !lightOn;
+            light.style.backgroundColor = lightOn ? 'yellow' : 'grey';
+            light.textContent = lightOn ? 'Light On' : 'Light Off';
+        }
+
+        function toggleFan() {
+            fanOn = !fanOn;
+            fan.style.backgroundColor = fanOn ? 'blue' : 'grey';
+            fan.textContent = fanOn ? 'Fan On' : 'Fan Off';
+        }
+    </script>
+</body>
+</html>
